@@ -7,11 +7,11 @@ authors = ["pedro_dietrich <pedro.martins@taqtile.com.br>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
-python-dotenv = "^1.1.0"
-langchain = "^0.3.25"
-langchain-openai = "^0.3.16"
-langchain-groq = "^0.3.2"
+python = "3.11"
+python-dotenv = "1.1.0"
+langchain = "0.3.25"
+langchain-openai = "0.3.16"
+langchain-groq = "0.3.2"
 
 
 [build-system]
