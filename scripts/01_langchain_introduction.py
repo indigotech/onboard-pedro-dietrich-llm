@@ -13,18 +13,18 @@ def get_chat_model(vendor: str):
     print(f'Selected vendor: {vendor}')
 
     if not os.environ.get(f'{vendor.upper()}_API_KEY'):
-        print(f'API key not defined for the vendor {vendor}.\n')
+        raise ValueError(f'API key not defined for the vendor {vendor}.')
 
     if vendor == 'openai':
         return init_chat_model('gpt-4o-mini', model_provider=vendor)
-    elif vendor == 'groq':
-        return init_chat_model('llama-3.3-70b-versatile', model_provider=vendor)
     else:
-        raise ValueError(f"Unsupported vendor: {vendor}.")
+        return init_chat_model('llama-3.3-70b-versatile', model_provider=vendor)
 
 
 def main():
+    load_dotenv()
     args = get_arguments()
+
     model = get_chat_model(args.vendor)
 
     prompt = input('Prompt: ')
@@ -40,5 +40,4 @@ def main():
         print(message.content)
 
 
-load_dotenv()
 main()
