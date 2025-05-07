@@ -1,0 +1,25 @@
+[tool.poetry]
+package-mode = false
+name = "onboard-pedro-dietrich-llm"
+version = "0.1.0"
+description = "Onboarding LLM project."
+authors = ["pedro_dietrich <pedro.martins@taqtile.com.br>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "3.11"
+python-dotenv = "1.1.0"
+langchain = "0.3.25"
+langchain-openai = "0.3.16"
+langchain-groq = "0.3.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pyright]
+exclude = [".venv"]
+typeCheckingMode = ["off"]
+venv = ".venv"
+venvPath = "."
