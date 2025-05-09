@@ -7,6 +7,7 @@ def get_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--vendor', type=str, choices=['openai', 'groq'], default='openai')
     parser.add_argument('-s', '--stream', action='store_true', default=False)
+    parser.add_argument('-c', '--chatid', type=str)
     return parser.parse_args()
 
 def get_chat_model(vendor: str) -> BaseChatModel:
