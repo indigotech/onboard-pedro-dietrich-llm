@@ -2,19 +2,17 @@ from dotenv import load_dotenv
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
-from chat_config import get_arguments, get_chat_model
+from chat_config import *
 from db import *
 
-def chat(chat_history: list[BaseMessage], model: BaseChatModel, stream: bool) -> list[tuple[int, str, str]]:
-    position: int = len(chat_history)
-    new_messages: list[tuple[int, str, str]] = []
+def chat(chat_history: list[BaseMessage], model: BaseChatModel, stream: bool) -> list[MessageData]:
+    new_messages: list[MessageData] = []
 
     user_input = input('  User ("quit" to exit): ')
-    while user_input != 'quit' or user_input == 'exit':
+    while user_input != 'quit' and user_input != 'exit':
         print()
         chat_history.append(HumanMessage(content=user_input))
-        new_messages.append((position, 'user', user_input))
-        position += 1
+        new_messages.append(MessageData(datetime.datetime.now(), 'user', user_input))
 
         ai_response: str = ''
         if stream:
@@ -28,8 +26,7 @@ def chat(chat_history: list[BaseMessage], model: BaseChatModel, stream: bool) ->
             ai_response = str(output_message.content)
 
         chat_history.append(AIMessage(content=ai_response))
-        new_messages.append((position, 'assistant', ai_response))
-        position += 1
+        new_messages.append(MessageData(datetime.datetime.now(), 'assistant', ai_response))
 
         user_input = input('  User ("quit" to exit): ')
     return new_messages
@@ -48,7 +45,7 @@ def main():
 
     chat_id: str = args.chatid
     chat_history: list[BaseMessage] = []
-    new_messages: list[tuple[int, str, str]] = []
+    new_messages: list[MessageData] = []
 
     if args.chatid:
         chat_history = fetch_history(conn, chat_id)
@@ -58,7 +55,7 @@ def main():
         print(f'Chat ID: {chat_id}')
         system_prompt = 'You are a helpful assistant.'
         chat_history.append(SystemMessage(content=system_prompt))
-        new_messages.append((0, 'system', system_prompt))
+        new_messages.append(MessageData(datetime.datetime.now(), 'system', system_prompt))
     else:
         print(f'Chat ID: {chat_id}')
         print(f'Chat history:')

@@ -1,7 +1,14 @@
 import argparse
 import os
+from datetime import datetime
+from typing import NamedTuple
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
+
+class MessageData(NamedTuple):
+    time: datetime
+    role: str
+    content: str
 
 def get_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()

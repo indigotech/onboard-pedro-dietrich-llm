@@ -1,3 +1,4 @@
+import datetime
 import sqlite3
 import uuid
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
@@ -16,7 +17,7 @@ def init_db() -> sqlite3.Connection:
             CREATE TABLE IF NOT EXISTS messages (
                 message_id TEXT PRIMARY KEY,
                 chat_id TEXT,
-                position INT,
+                time TIMESTAMP,
                 role TEXT,
                 content TEXT,
                 FOREIGN KEY(chat_id) REFERENCES chats(chat_id)
@@ -45,7 +46,7 @@ def fetch_history(conn: sqlite3.Connection, chat_id: str) -> list[BaseMessage]:
         """
             SELECT role, content FROM messages
             WHERE chat_id = ?
-            ORDER BY position ASC;
+            ORDER BY time ASC;
         """,
         [chat_id]
     )
@@ -63,15 +64,15 @@ def fetch_history(conn: sqlite3.Connection, chat_id: str) -> list[BaseMessage]:
             raise ValueError(f'Unknown role in DB: {role}')
     return chat
 
-def save_message(conn: sqlite3.Connection, chat_id: str, position: int, role: str, content: str) -> None:
+def save_message(conn: sqlite3.Connection, chat_id: str, time: datetime.datetime, role: str, content: str) -> None:
     cursor = conn.cursor()
     message_id = str(uuid.uuid4())
 
     cursor.execute(
         """
-            INSERT INTO messages (message_id, chat_id, position, role, content)
+            INSERT INTO messages (message_id, chat_id, time, role, content)
             VALUES (?, ?, ?, ?, ?);
         """,
-        (message_id, chat_id, position, role, content)
+        (message_id, chat_id, time, role, content)
     )
     conn.commit()

@@ -3,7 +3,7 @@ from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable, RunnableWithMessageHistory
 
-from chat_config import get_arguments, get_chat_model
+from chat_config import *
 from db import *
 
 def get_role(message: BaseMessage) -> str:
@@ -22,24 +22,22 @@ class ChatHistory(BaseChatMessageHistory):
         self.chat_id: str = chat_id
         self.conn: sqlite3.Connection = conn
         self.messages: list[BaseMessage] = fetch_history(self.conn, self.chat_id)
-        self.new_messages: list[tuple[int, str, str]] = []
-        self.position: int = len(self.messages)
+        self.new_messages: list[MessageData] = []
 
-        if self.position == 0:
+        if len(self.messages) == 0:
             self.chat_id = create_new_chat(conn)
             print(f'Chat ID: {self.chat_id}\n')
             self.add_message(SystemMessage(content='You are a helpful assistant.'))
         else:
             print(f'Chat ID: {self.chat_id}\n')
-            for i in range(self.position):
+            for i in range(len(self.messages)):
                 if i == 0: continue
                 print(f'  {"User" if i % 2 == 1 else "AI"}: {self.messages[i].content}\n')
 
 
     def add_message(self, message: BaseMessage) -> None:
         self.messages.append(message)
-        self.new_messages.append((self.position, get_role(message), str(message.content)))
-        self.position += 1
+        self.new_messages.append(MessageData(datetime.datetime.now(), get_role(message), str(message.content)))
 
     def save_messages(self) -> None:
         for m in self.new_messages:
@@ -48,12 +46,11 @@ class ChatHistory(BaseChatMessageHistory):
     def clear(self) -> None:
         self.messages = []
         self.new_messages = []
-        self.position = 0
 
 
 def chat(chat_history: ChatHistory, chain: Runnable, stream: bool) -> None:
     user_input = input('  User ("quit" to exit): ')
-    while user_input != 'quit' or user_input == 'exit':
+    while user_input != 'quit' and user_input != 'exit':
         ai_response: str = ''
         if stream:
             for chunk in chain.stream(user_input, config={'configurable': {'session_id': chat_history.chat_id}}):
