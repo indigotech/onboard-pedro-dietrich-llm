@@ -1,25 +1,6 @@
-import argparse
-import os
 from dotenv import load_dotenv
-from langchain.chat_models import init_chat_model
 
-def get_arguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--vendor', type=str, choices=['openai', 'groq'], default='openai')
-    parser.add_argument('-s', '--stream', action='store_true', default=False)
-    return parser.parse_args()
-
-def get_chat_model(vendor: str):
-    print(f'Selected vendor: {vendor}')
-
-    if not os.environ.get(f'{vendor.upper()}_API_KEY'):
-        raise ValueError(f'API key not defined for the vendor {vendor}.')
-
-    if vendor == 'openai':
-        return init_chat_model('gpt-4o-mini', model_provider=vendor)
-    else:
-        return init_chat_model('llama-3.3-70b-versatile', model_provider=vendor)
-
+from chat_config import get_arguments, get_chat_model
 
 def main():
     load_dotenv()
