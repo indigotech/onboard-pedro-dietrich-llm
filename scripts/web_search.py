@@ -8,7 +8,10 @@ class WebSearchInput(TypedDict):
 
 @tool
 def web_search(search_input: str) -> dict:
-    """Performs a web search for the given query."""
+    """
+        Searches updated informations on the internet using the Google search engine.
+        Ideal for questions that requires recent data, such as news, ongoing events or constantly changing topics.
+    """
 
     search = SearchApiAPIWrapper()
     return search.results(search_input)
