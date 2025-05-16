@@ -1,20 +1,10 @@
 from dotenv import load_dotenv
 from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.runnables import Runnable, RunnableWithMessageHistory
 
 from chat_config import *
 from db import *
-
-def get_role(message: BaseMessage) -> str:
-    if isinstance(message, SystemMessage):
-        return 'system'
-    elif isinstance(message, HumanMessage):
-        return 'user'
-    elif isinstance(message, AIMessage):
-        return 'assistant'
-    else:
-        raise ValueError(f'Unsupported message type: {type(message)}')
 
 
 class ChatHistory(BaseChatMessageHistory):
@@ -37,7 +27,7 @@ class ChatHistory(BaseChatMessageHistory):
 
     def add_message(self, message: BaseMessage) -> None:
         self.messages.append(message)
-        self.new_messages.append(MessageData(datetime.datetime.now(), get_role(message), str(message.content)))
+        self.new_messages.append(MessageData(datetime.datetime.now(), get_message_role(message), str(message.content)))
 
     def save_messages(self) -> None:
         for m in self.new_messages:
@@ -50,16 +40,18 @@ class ChatHistory(BaseChatMessageHistory):
 
 def chat(chat_history: ChatHistory, chain: Runnable, stream: bool) -> None:
     user_input = input('  User ("quit" to exit): ')
+    print(flush=True)
     while user_input != 'quit' and user_input != 'exit':
         ai_response: str = ''
         if stream:
+            print(f'  AI: ', end='', flush=True)
             for chunk in chain.stream(user_input, config={'configurable': {'session_id': chat_history.chat_id}}):
                 print(chunk.content, end='', flush=True)
                 ai_response += str(chunk.content)
             print('\n')
         else:
             output_message = chain.invoke(user_input, config={'configurable': {'session_id': chat_history.chat_id}})
-            print(f'  AI: {output_message.content}', '\n')
+            print(f'  AI: {output_message.content}\n')
             ai_response = str(output_message.content)
 
         user_input = input('  User ("quit" to exit): ')
