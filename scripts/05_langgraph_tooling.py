@@ -13,19 +13,7 @@ class ChatHistory():
         self.conn: sqlite3.Connection = conn
         self.messages: list[BaseMessage] = fetch_history(self.conn, self.chat_id)
         self.new_messages: list[MessageData] = []
-
-        if len(self.messages) == 0:
-            self.chat_id = create_new_chat(conn)
-            print(f'{text_colors["yellow2"]}Chat ID: {self.chat_id}\n')
-            self.add_message(SystemMessage(content='You are a helpful assistant.'))
-        else:
-            print(f'{text_colors["yellow2"]}Chat ID: {self.chat_id}\n')
-            for m in self.messages:
-                if isinstance(m, AIMessage) and m.content:
-                    print(f'{text_colors["blue2"]}{m.content}\n')
-                elif isinstance(m, HumanMessage):
-                    print(f'{text_colors["green2"]}{m.content}\n')
-
+        self.load_chat()
 
     def add_message(self, message: BaseMessage) -> None:
         self.messages.append(message)
@@ -40,6 +28,19 @@ class ChatHistory():
     def clear(self) -> None:
         self.messages = []
         self.new_messages = []
+
+    def load_chat(self) -> None:
+        if len(self.messages) == 0:
+            self.chat_id = create_new_chat(self.conn)
+            print(f'{text_colors["yellow2"]}Chat ID: {self.chat_id}\n')
+            self.add_message(SystemMessage(content='You are a helpful assistant.'))
+        else:
+            print(f'{text_colors["yellow2"]}Chat ID: {self.chat_id}\n')
+            for m in self.messages:
+                if isinstance(m, AIMessage) and m.content:
+                    print(f'{text_colors["blue2"]}{m.content}\n')
+                elif isinstance(m, HumanMessage):
+                    print(f'{text_colors["green2"]}{m.content}\n')
 
 
 def query_llm(agent: CompiledGraph, chat_history: ChatHistory) -> None:
