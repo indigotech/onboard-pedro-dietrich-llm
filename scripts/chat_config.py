@@ -5,10 +5,6 @@ from typing import NamedTuple
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
-from langgraph.graph.graph import CompiledGraph
-from langgraph.prebuilt import create_react_agent
-
-from web_search import web_search
 
 class MessageData(NamedTuple):
     time: datetime
@@ -33,11 +29,6 @@ def get_chat_model(vendor: str) -> BaseChatModel:
     else:
         return init_chat_model('llama-3.3-70b-versatile', model_provider=vendor)
 
-def create_agent(vendor: str) -> CompiledGraph:
-    model = get_chat_model(vendor)
-    return create_react_agent(model=model, tools=[web_search])
-
-
 def get_message_role(message: BaseMessage) -> str:
     if isinstance(message, SystemMessage):
         return 'system'
@@ -59,7 +50,7 @@ text_colors = {
     'yellow': '\33[33m',
     'blue': '\33[34m',
     'violet': '\33[35m',
-    'cyan': '\33[36m',
+    'beige': '\33[36m',
     'white': '\33[37m',
     'gray': '\33[90m',
     'red2': '\33[91m',
@@ -67,6 +58,6 @@ text_colors = {
     'yellow2': '\33[93m',
     'blue2': '\33[94m',
     'violet2': '\33[95m',
-    'cyan2': '\33[96m',
+    'beige2': '\33[96m',
     'white2': '\33[97m',
 }
