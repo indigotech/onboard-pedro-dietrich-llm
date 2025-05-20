@@ -13,8 +13,6 @@ langchain = "0.3.25"
 langchain-openai = "0.3.16"
 langchain-groq = "0.3.2"
 langchain-community = "0.3.24"
-langgraph = "0.4.3"
-langsmith = "0.3.42"
 
 
 [build-system]
