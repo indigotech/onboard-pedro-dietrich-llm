@@ -1,11 +1,12 @@
 from dotenv import load_dotenv
+from enum import Enum
 from langchain_core.tools import InjectedToolCallId
 from langgraph.graph import MessagesState, StateGraph, START
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from pydantic import BaseModel, Field
-from typing import Annotated, Literal
+from typing import Annotated
 
 from chat_config import *
 from chat_history import ChatHistory
@@ -71,8 +72,8 @@ def create_agents(model: BaseChatModel) -> list[CompiledGraph]:
         prompt=(
             'You are a supervisor managing two agents:\n'
             '- A research agent. Assign research related tasks to this agent.\n'
-            '- A writer agent. Assing text generation tasks to this agent.\n'
-            'Assing work to one agent at a time, do not call agents in parallel.\n'
+            '- A writer agent. Assign text generation tasks to this agent.\n'
+            'Assign work to one agent at a time, do not call agents in parallel.\n'
             'Do not do any work yourself.\n'
             'Never write the responses to the user messages, assign the writer agent to do that, always.'
         )
@@ -83,7 +84,7 @@ def create_agents(model: BaseChatModel) -> list[CompiledGraph]:
         tools=[assign_to_calculator_agent],
         prompt=(
             'You are a supervisor managing one agent:\n'
-            '- A calculator agent. Assing math tasks to this agent.\n'
+            '- A calculator agent. Assign math tasks to this agent.\n'
             'Do not do any math work yourself.'
         )
     ))
@@ -91,26 +92,30 @@ def create_agents(model: BaseChatModel) -> list[CompiledGraph]:
     return agents
 
 
+class ChatbotSystems(Enum):
+    RESEARCH = 'research_supervisor'
+    MATH = 'calculator_supervisor'
+
 class GraphState(MessagesState):
     route: str
 
 class RouterOutput(BaseModel):
     """
         Router's structured response to decide which multi-agent system will be used to answer the user.
-        The `decision` must be either `research` or `math`. Use `research` by default.
+        The `decision` must be either `RESEARCH` or `MATH`. Use `RESEARCH` by default.
     """
-    decision: Literal['research', 'math']
+    decision: ChatbotSystems
     reason: str = Field(..., description='Why this routing decision was made.')
 
 
 def create_router(model: BaseChatModel):
     llm = model.with_structured_output(RouterOutput)
 
-    def router(state: GraphState) -> Literal['research', 'math']:
+    def router(state: GraphState) -> str:
         latest_message = state['messages'][-1]
         result: RouterOutput = llm.invoke([latest_message]) # type: ignore
-        print(f'{text_colors["cyan2"]}Using {result.decision} system.\n')
-        return result.decision
+        print(f'{text_colors["cyan2"]}Using {result.decision.name} system.\n')
+        return result.decision.value
 
     return router
 
@@ -124,7 +129,7 @@ def build_graph(model: BaseChatModel) -> CompiledStateGraph:
     for agent in agents:
         graph.add_node(agent)
 
-    graph.add_conditional_edges(START, router, {'research': 'research_supervisor', 'math': 'calculator_supervisor'})
+    graph.add_conditional_edges(START, router)
     graph.add_edge('research_agent', 'research_supervisor')
     graph.add_edge('writer_agent', 'research_supervisor')
     graph.add_edge('calculator_agent', 'calculator_supervisor')
@@ -149,11 +154,12 @@ def query_llm_stream(graph: CompiledStateGraph, chat_history: ChatHistory) -> No
         new_messages.extend(chunk.get('writer_agent', {}).get('messages', [])[len(chat_history.messages):])
 
         for m in new_messages:
-            if isinstance(m, BaseMessage):
-                if m.content: print(f'{text_colors["blue2"]}{m.content}', flush=True)
+            if isinstance(m, BaseMessage) and m.content:
+                name = str(m.name)
+                if m.content and ('_supervisor' in name or 'transfer_to_' in name or name == 'writer_agent'):
+                    print(f'{text_colors["blue2"]}{m.content}', flush=True)
+
                 chat_history.add_message(m)
-            elif isinstance(m, dict) and m['role'] == 'tool':
-                print(f'{text_colors["violet2"]}Tool: {m["content"]}\n', flush=True)
     print(flush=True)
 
 def chat(graph: CompiledStateGraph, chat_history: ChatHistory, stream: bool) -> None:
