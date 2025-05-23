@@ -1,13 +1,15 @@
 import argparse
 import os
 from datetime import datetime
-from typing import NamedTuple
+from typing import Annotated, NamedTuple
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, InjectedToolCallId
+from langgraph.graph import MessagesState
 from langgraph.graph.graph import CompiledGraph
-from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt import InjectedState, create_react_agent
+from langgraph.types import Command
 
 from tools import *
 
@@ -37,6 +39,23 @@ def get_chat_model(vendor: str) -> BaseChatModel:
 def create_agent(vendor: str, tools: list[BaseTool]) -> CompiledGraph:
     model = get_chat_model(vendor)
     return create_react_agent(model=model, tools=tools)
+
+
+def create_handoff_tool(*, agent_name: str, description: str | None = None) -> BaseTool:
+    name = f'transfer_to_{agent_name}'
+    description = description or f'Ask {agent_name} for help.'
+
+    @tool(name, description=description)
+    def handoff_tool(state: Annotated[MessagesState, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId]) -> Command:
+        tool_message = {
+            'role': 'tool',
+            'content': f'{text_colors["violet2"]}Successfully transfered to {agent_name}.',
+            'name': name,
+            'tool_call_id': tool_call_id
+        }
+        return Command(goto=agent_name, update={**state, 'messages': state['messages'] + [tool_message]}, graph=Command.PARENT)
+
+    return handoff_tool
 
 
 def get_message_role(message: BaseMessage) -> str:
