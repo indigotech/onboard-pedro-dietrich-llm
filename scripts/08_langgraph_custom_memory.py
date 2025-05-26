@@ -2,10 +2,10 @@ import base64
 import pickle
 from dotenv import load_dotenv
 from enum import Enum
-from langchain_core.messages import AnyMessage
 from langgraph.graph import StateGraph, START
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
+from typing import Optional
 
 from chat_config import *
 from chat_history import ChatHistory
@@ -15,14 +15,14 @@ from db import init_db
 CHAT_WINDOW_SIZE: int = 5
 
 
-def create_agents(model: BaseChatModel) -> list[CompiledGraph]:
-    agents: list[CompiledGraph] = []
+def create_agents(model: BaseChatModel) -> dict[str, CompiledGraph]:
+    agents: dict[str, CompiledGraph] = {}
 
     assign_to_research_agent = create_handoff_tool(agent_name='research_agent', description='Assign task to the research agent.')
     assign_to_calculator_agent = create_handoff_tool(agent_name='calculator_agent', description='Assign task to the calculator agent.')
     assign_to_writer_agent = create_handoff_tool(agent_name='writer_agent', description='Assign task to the writer agent.')
 
-    agents.append(create_react_agent(
+    agents['research_agent'] = create_react_agent(
         name='research_agent',
         model=model,
         tools=[web_search],
@@ -31,8 +31,8 @@ def create_agents(model: BaseChatModel) -> list[CompiledGraph]:
             'As soon as you finish the search, you return to your supervisor the search results.\n'
             'Do not include extra text in the search results.'
         )
-    ))
-    agents.append(create_react_agent(
+    )
+    agents['calculator_agent'] = create_react_agent(
         name='calculator_agent',
         model=model,
         tools=[add, subtract, multiply],
@@ -40,8 +40,8 @@ def create_agents(model: BaseChatModel) -> list[CompiledGraph]:
             'You are a calculator agent. Do only sum, subtraction and multiplication, and nothing else.\n'
             'Respond directly to your supervisor, and do not include any text other than the task results.'
         )
-    ))
-    agents.append(create_react_agent(
+    )
+    agents['writer_agent'] = create_react_agent(
         name='writer_agent',
         model=model,
         tools=[],
@@ -49,8 +49,8 @@ def create_agents(model: BaseChatModel) -> list[CompiledGraph]:
             'You are a writer agent. You should only generate text for the response.\n'
             'Respond directly to your supervisor.'
         )
-    ))
-    agents.append(create_react_agent(
+    )
+    agents['research_supervisor'] = create_react_agent(
         name='research_supervisor',
         model=model,
         tools=[assign_to_research_agent, assign_to_writer_agent],
@@ -62,8 +62,8 @@ def create_agents(model: BaseChatModel) -> list[CompiledGraph]:
             'Do not do any work yourself.\n'
             'Never write the responses to the user messages, assign the writer agent to do that, always.'
         )
-    ))
-    agents.append(create_react_agent(
+    )
+    agents['calculator_supervisor'] = create_react_agent(
         name='calculator_supervisor',
         model=model,
         tools=[assign_to_calculator_agent],
@@ -72,22 +72,27 @@ def create_agents(model: BaseChatModel) -> list[CompiledGraph]:
             '- A calculator agent. Assign math tasks to this agent.\n'
             'Do not do any math work yourself.'
         )
-    ))
+    )
 
     return agents
 
 
 class ChatbotSystems(Enum):
-    RESEARCH = 'research_supervisor'
-    MATH = 'calculator_supervisor'
+    RESEARCH = 'research_subgraph'
+    MATH = 'calculator_subgraph'
 
 class RouterOutput(BaseModel):
     """
         Router's structured response to decide which multi-agent system will be used to answer the user.
         The `decision` must be either `RESEARCH` or `MATH`. Use `RESEARCH` by default.
     """
-    decision: ChatbotSystems
+    decision: ChatbotSystems = Field(default=ChatbotSystems.RESEARCH)
     reason: str = Field(..., description='Why this routing decision was made.')
+
+class UserData(BaseModel):
+    name: Optional[str] = Field(None, description="User's name, if mentioned.")
+    age: Optional[int] = Field(None, description="User's age, if specified.")
+    gender: Optional[str] = Field(None, description="User's gender, if stated.")
 
 class ContextOutput(BaseModel):
     """
@@ -95,7 +100,7 @@ class ContextOutput(BaseModel):
         Keep the context data as short as possible, while keeping the important information.
     """
     chat_summary: str = Field(..., description='Summary of the current conversation between the user and the chatbot system.')
-    user_data: str = Field(..., description='Relevant information about the user.')
+    user_data: UserData = Field(..., description='Relevant information about the user.')
 
 class GraphState(MessagesState):
     context: ContextOutput
@@ -145,18 +150,29 @@ def build_graph(model: BaseChatModel) -> CompiledStateGraph:
     router = create_router(model)
     context_agent = create_context_agent(model)
 
+    research_graph_builder = StateGraph(GraphState)
+    research_graph_builder.add_node(agents['research_supervisor'])
+    research_graph_builder.add_node(agents['research_agent'])
+    research_graph_builder.add_node(agents['writer_agent'])
+    research_graph_builder.set_entry_point('research_supervisor')
+    research_graph_builder.add_edge('research_agent', 'research_supervisor')
+    research_graph_builder.add_edge('writer_agent', 'research_supervisor')
+    research_subgraph = research_graph_builder.compile()
+
+    calculator_graph_builder = StateGraph(GraphState)
+    calculator_graph_builder.add_node(agents['calculator_supervisor'])
+    calculator_graph_builder.add_node(agents['calculator_agent'])
+    calculator_graph_builder.set_entry_point('calculator_supervisor')
+    calculator_graph_builder.add_edge('calculator_agent', 'calculator_supervisor')
+    calculator_subgraph = calculator_graph_builder.compile()
+
     graph = StateGraph(GraphState)
-
-    for agent in agents:
-        graph.add_node(agent)
-    graph.add_node('context_agent', context_agent)
-
     graph.add_conditional_edges(START, router)
-    graph.add_edge('research_agent', 'research_supervisor')
-    graph.add_edge('writer_agent', 'research_supervisor')
-    graph.add_edge('calculator_agent', 'calculator_supervisor')
-    graph.add_edge('research_supervisor', 'context_agent')
-    graph.add_edge('calculator_supervisor', 'context_agent')
+    graph.add_node('research_subgraph', research_subgraph)
+    graph.add_node('calculator_subgraph', calculator_subgraph)
+    graph.add_node('context_agent', context_agent)
+    graph.add_edge('research_subgraph', 'context_agent')
+    graph.add_edge('calculator_subgraph', 'context_agent')
     graph.set_finish_point('context_agent')
 
     return graph.compile()
@@ -166,7 +182,7 @@ def encode_context(context: ContextOutput) -> str:
     return base64.b64encode(pickle.dumps(context)).decode('utf-8')
 
 def decode_context(encoding: str) -> ContextOutput:
-    if encoding == '': return ContextOutput(chat_summary='', user_data='')
+    if encoding == '': return ContextOutput(chat_summary='', user_data=UserData(name=None, age=None, gender=None))
     return pickle.loads(base64.b64decode(encoding.encode('utf-8')))
 
 
