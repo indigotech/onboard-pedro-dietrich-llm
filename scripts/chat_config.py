@@ -5,10 +5,11 @@ from typing import NamedTuple
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.tools import BaseTool
 from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import create_react_agent
 
-from web_search import web_search
+from tools import *
 
 class MessageData(NamedTuple):
     time: datetime
@@ -33,9 +34,9 @@ def get_chat_model(vendor: str) -> BaseChatModel:
     else:
         return init_chat_model('llama-3.3-70b-versatile', model_provider=vendor)
 
-def create_agent(vendor: str) -> CompiledGraph:
+def create_agent(vendor: str, tools: list[BaseTool]) -> CompiledGraph:
     model = get_chat_model(vendor)
-    return create_react_agent(model=model, tools=[web_search])
+    return create_react_agent(model=model, tools=tools)
 
 
 def get_message_role(message: BaseMessage) -> str:
