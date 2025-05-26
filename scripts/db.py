@@ -8,7 +8,8 @@ def init_db() -> sqlite3.Connection:
     conn.cursor().execute(
         """
             CREATE TABLE IF NOT EXISTS chats (
-                chat_id TEXT PRIMARY KEY
+                chat_id TEXT PRIMARY KEY,
+                context TEXT
             );
         """
     )
@@ -33,14 +34,14 @@ def create_new_chat(conn: sqlite3.Connection) -> str:
     cursor.execute(
         """
             INSERT INTO chats
-            (chat_id) VALUES (?);
+            (chat_id, context) VALUES (?, ?);
         """,
-        [chat_id]
+        [chat_id, '']
     )
     conn.commit()
     return chat_id
 
-def fetch_history(conn: sqlite3.Connection, chat_id: str) -> list[BaseMessage]:
+def fetch_history(conn: sqlite3.Connection, chat_id: str) -> tuple[list[BaseMessage], str]:
     cursor = conn.cursor()
     cursor.execute(
         """
@@ -52,6 +53,16 @@ def fetch_history(conn: sqlite3.Connection, chat_id: str) -> list[BaseMessage]:
     )
     rows: list[tuple[str, str]] = cursor.fetchall()
 
+    cursor.execute(
+        """
+            SELECT context FROM chats
+            WHERE chat_id = ?;
+        """,
+        [chat_id]
+    )
+    context = cursor.fetchone()
+    context: str = context[0] if isinstance(context, list) else ''
+
     chat: list[BaseMessage] = []
     for role, content in rows:
         if role == 'system':
@@ -62,7 +73,7 @@ def fetch_history(conn: sqlite3.Connection, chat_id: str) -> list[BaseMessage]:
             chat.append(AIMessage(content))
         else:
             raise ValueError(f'Unknown role in DB: {role}')
-    return chat
+    return chat, context
 
 def save_message(conn: sqlite3.Connection, chat_id: str, time: datetime.datetime, role: str, content: str) -> None:
     cursor = conn.cursor()
@@ -75,4 +86,18 @@ def save_message(conn: sqlite3.Connection, chat_id: str, time: datetime.datetime
         """,
         (message_id, chat_id, time, role, content)
     )
+    conn.commit()
+
+def save_context(conn: sqlite3.Connection, chat_id: str, context: str) -> None:
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+            UPDATE chats
+            SET context = ?
+            WHERE chat_id = ?
+        """,
+        (context, chat_id)
+    )
+
     conn.commit()
