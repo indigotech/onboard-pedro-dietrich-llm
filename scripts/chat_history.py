@@ -9,8 +9,12 @@ class ChatHistory(BaseChatMessageHistory):
     def __init__(self, chat_id: str, conn: sqlite3.Connection):
         self.chat_id: str = chat_id
         self.conn: sqlite3.Connection = conn
-        self.messages: list[BaseMessage] = fetch_history(self.conn, self.chat_id)
+
+        db_messages, db_context = fetch_history(self.conn, self.chat_id)
+        self.messages: list[BaseMessage] = db_messages
         self.new_messages: list[MessageData] = []
+        self.context: str = db_context
+
         self.initialize_chat()
 
     def add_message(self, message: BaseMessage) -> None:
@@ -19,9 +23,15 @@ class ChatHistory(BaseChatMessageHistory):
         if isinstance(message, ToolMessage) or not message.content: return
         self.new_messages.append(MessageData(dt.datetime.now(), get_message_role(message), str(message.content)))
 
+    def update_context(self, new_context: str) -> None:
+        self.context = new_context
+
     def save_messages(self) -> None:
         for m in self.new_messages:
             save_message(self.conn, self.chat_id, m[0], m[1], m[2])
+
+    def save_context(self) -> None:
+        save_context(self.conn, self.chat_id, str(self.context))
 
     def clear(self) -> None:
         self.messages = []
